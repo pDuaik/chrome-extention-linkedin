@@ -1,0 +1,14 @@
+{
+  "name": "LinkedIn Feed Muzzle",
+  "description": "Hide the LinkedIn home feed so you can get things done.",
+  "version": "1.0.0",
+  "manifest_version": 3,
+  "content_scripts": [
+    {
+      "matches": ["https://www.linkedin.com/*"],
+      "js": ["content.js"],
+      "css": ["hide.css"],
+      "run_at": "document_idle"
+    }
+  ]
+}
