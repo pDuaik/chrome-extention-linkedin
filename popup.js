@@ -1,14 +1,16 @@
 const toggle = document.getElementById('toggleFeed');
 
-// Load saved setting
-chrome.storage.sync.get(['feedBlockEnabled'], ({ feedBlockEnabled }) => {
-  toggle.checked = feedBlockEnabled ?? true;
+// Load current value
+chrome.storage.sync.get({ feedBlockEnabled: true }, ({ feedBlockEnabled }) => {
+  toggle.checked = !!feedBlockEnabled;
 });
 
+// Persist + notify the active tab immediately
 function notifyActiveTab(enabled) {
   chrome.tabs.query({ active: true, currentWindow: true }, tabs => {
-    const tab = tabs && tabs[0];
+    const tab = tabs[0];
     if (!tab || !tab.id) return;
+    // Fire-and-forget; content script will ignore if not on linkedin.com
     chrome.tabs.sendMessage(tab.id, { type: 'FEED_TOGGLE_CHANGED', enabled });
   });
 }
@@ -16,7 +18,6 @@ function notifyActiveTab(enabled) {
 toggle.addEventListener('change', () => {
   const enabled = toggle.checked;
   chrome.storage.sync.set({ feedBlockEnabled: enabled }, () => {
-    // Tell the current tab immediately so you don’t wait for storage propagation
     notifyActiveTab(enabled);
   });
 });
