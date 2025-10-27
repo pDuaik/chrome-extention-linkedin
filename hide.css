@@ -1,19 +1,6 @@
-/* Kill common feed containers; LinkedIn loves to rename stuff, so belt and braces */
-#feed-container,
-.scaffold-finite-scroll,
-div[data-test-app-selector="feed"],
-main div.feed-outlet,
-div[data-view-name="feed-container"] {
-  display: none !important;
-}
-
-/* Remove “What’s on your mind” editor on /feed if you want zero temptations */
-div.share-box-feed-entry__closed,
-div.share-box-feed-entry__wrapper {
-  display: none !important;
-}
-
-/* Optional: tidy the layout when the feed is gone */
-body, html {
-  overflow-y: auto !important;
+/* Optional layout tidy when the feed is hidden on /feed */
+html[data-li-onfeed="1"] .feed-outlet,
+html[data-li-onfeed="1"] #feed-container,
+html[data-li-onfeed="1"] div[data-test-app-selector="feed"] {
+  min-height: 0 !important;
 }
