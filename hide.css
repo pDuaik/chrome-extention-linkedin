@@ -1,6 +1,10 @@
-/* Optional layout tidy when the feed is hidden on /feed */
-html[data-li-onfeed="1"] .feed-outlet,
-html[data-li-onfeed="1"] #feed-container,
-html[data-li-onfeed="1"] div[data-test-app-selector="feed"] {
-  min-height: 0 !important;
+/* Hide the main feed section by its accessible label */
+main[aria-label="Main Feed"] {
+  display: none !important;
+  visibility: hidden !important;
+}
+
+/* Optional: clean up layout when feed is gone */
+body, html {
+  overflow-y: auto !important;
 }

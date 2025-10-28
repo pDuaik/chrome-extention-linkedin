@@ -1,111 +1,151 @@
-// ==== LinkedIn Feed Toggle — honours popup on reload and SPA nav ====
+// ===== Scoped, boring, and reliable =====
+// Only acts on /feed. Deletes exactly the feed scroller.
+// Handles: hard reloads, SPA nav via history, and navbar swaps that don't change URL.
 
 const FEED_SELECTOR = '.scaffold-finite-scroll.scaffold-finite-scroll--infinite';
+const FEED_PARENTS = [
+  'div[data-test-app-selector="feed"]',
+  '#feed-container',
+  'main .feed-outlet'
+];
 
-let enabled = true;      // cached toggle
-let ready = false;       // don't act until storage is loaded
 let lastPath = location.pathname;
-let burstInterval = null;
-let burstDeadline = 0;
+let observer = null;
+let pollTimer = null;
+let stopTimer = null;
 
-function onFeedRoute() {
+/* Utils */
+function isFeedRoute() {
   return location.pathname === '/feed' || location.pathname === '/feed/';
 }
 
-function nukeOnce() {
-  if (!ready || !enabled || !onFeedRoute()) return false;
+function findFeedParent() {
+  for (const sel of FEED_PARENTS) {
+    try {
+      const p = document.querySelector(sel);
+      if (p) return p;
+    } catch {}
+  }
+  return null;
+}
+
+function deleteFeedOnce() {
+  if (!isFeedRoute()) return false;
+
+  // Only consider elements that live under a recognised feed parent
+  const parent = findFeedParent();
+  if (!parent) return false;
+
   let removed = false;
-  document.querySelectorAll(FEED_SELECTOR).forEach(el => {
+  parent.querySelectorAll(FEED_SELECTOR).forEach(el => {
     el.remove();
     removed = true;
   });
-  if (removed) console.log('[LI Feed Toggle] feed removed');
+  if (removed) console.log('[LI Feed Terminator] feed removed');
   return removed;
 }
 
-function startBurst(ms = 6000, everyMs = 100) {
+/* A short burst to catch late hydration, then we stop. */
+function startBurst({ delayMs = 500, durationMs = 5000, intervalMs = 120 } = {}) {
   clearBurst();
-  burstDeadline = (performance?.now?.() ?? Date.now()) + ms;
-  burstInterval = setInterval(() => {
-    const now = performance?.now?.() ?? Date.now();
-    if (now > burstDeadline) return clearBurst();
-    nukeOnce();
-  }, everyMs);
+  const startAt = Date.now() + delayMs;
+
+  pollTimer = setInterval(() => {
+    if (!isFeedRoute()) return;
+    if (Date.now() < startAt) return;
+    deleteFeedOnce();
+  }, intervalMs);
+
+  stopTimer = setTimeout(clearBurst, delayMs + durationMs);
 }
 
 function clearBurst() {
-  if (burstInterval) {
-    clearInterval(burstInterval);
-    burstInterval = null;
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  if (stopTimer) { clearTimeout(stopTimer); stopTimer = null; }
+}
+
+/* Minimal, scoped observer:
+   - only attached on /feed
+   - only watches the feed parent subtree
+   - disconnects when leaving /feed
+*/
+function ensureObserver() {
+  if (!isFeedRoute()) { disconnectObserver(); return; }
+  const parent = findFeedParent();
+  if (!parent) return;
+
+  if (observer) return;
+
+  observer = new MutationObserver(() => {
+    if (!isFeedRoute()) return;
+    // If the feed respawns under the feed parent, delete it again.
+    deleteFeedOnce();
+  });
+  observer.observe(parent, { childList: true, subtree: true });
+}
+
+function disconnectObserver() {
+  if (observer) {
+    observer.disconnect();
+    observer = null;
   }
 }
 
+/* Apply once for the current state */
 function applyNow(reason) {
-  if (!ready) return;           // critical: wait for storage load
-  clearBurst();
-  if (!enabled) return;         // toggle off → do nothing
-  if (!onFeedRoute()) return;   // only act on /feed
-  nukeOnce();
-  startBurst(7000, 100);
+  // console.debug('[LI Feed Terminator] apply:', reason, location.pathname);
+  if (!isFeedRoute()) {
+    clearBurst();
+    disconnectObserver();
+    return;
+  }
+  // Try now, then keep trying briefly, then rely on the scoped observer
+  deleteFeedOnce();
+  startBurst({ delayMs: 400, durationMs: 6000, intervalMs: 100 });
+  ensureObserver();
 }
 
-// ----- Bootstrap: load toggle state BEFORE wiring any handlers that act -----
-chrome.storage.sync.get({ feedBlockEnabled: true }, ({ feedBlockEnabled }) => {
-  enabled = !!feedBlockEnabled;
-  ready = true;
-  applyNow('init');
-});
+/* Hook true page loads */
+window.addEventListener('load', () => applyNow('load'));
 
-// ----- Live updates from popup/storage -----
-chrome.runtime.onMessage.addListener((msg) => {
-  if (msg && msg.type === 'FEED_TOGGLE_CHANGED') {
-    enabled = !!msg.enabled;
-    if (!ready) ready = true;   // in case popup talks very early
-    applyNow('popup-message');
-  }
-});
-
-chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'sync' && changes.feedBlockEnabled) {
-    enabled = !!changes.feedBlockEnabled.newValue;
-    if (!ready) ready = true;
-    applyNow('storage-change');
-  }
-});
-
-// ----- DOM respawns -----
-const mo = new MutationObserver(() => {
-  if (!ready || !enabled || !onFeedRoute()) return;
-  nukeOnce();
-});
-mo.observe(document.documentElement, { childList: true, subtree: true });
-
-// ----- SPA navigation hooks -----
+/* Hook SPA nav via history */
 const _ps = history.pushState;
 const _rs = history.replaceState;
+
 function onNav() {
   setTimeout(() => {
-    if (!ready) return;
-    if (location.pathname !== lastPath) {
-      lastPath = location.pathname;
-      applyNow('nav');
+    const path = location.pathname;
+    const changed = path !== lastPath;
+    lastPath = path;
+    if (changed) {
+      clearBurst();
+      disconnectObserver();
+      applyNow('history-nav');
     } else {
-      applyNow('nav-samepath');
+      // Some navbar clicks re-render without path change
+      applyNow('same-path-refresh');
     }
   }, 200);
 }
+
 history.pushState = function () { _ps.apply(this, arguments); onNav(); };
 history.replaceState = function () { _rs.apply(this, arguments); onNav(); };
 window.addEventListener('popstate', onNav);
 
-// ----- Fallback URL polling -----
+/* Fallback: URL poll in case LinkedIn sidesteps history handlers */
 setInterval(() => {
-  if (!ready) return;
   if (location.pathname !== lastPath) {
     lastPath = location.pathname;
-    applyNow('poll');
+    clearBurst();
+    disconnectObserver();
+    applyNow('url-poll');
   }
-}, 1000);
+}, 800);
 
-// No DOMContentLoaded handler here.
-// We rely on the storage load callback to mark ready and apply.
+/* Also react when the tab becomes visible again (LinkedIn can rehydrate) */
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') applyNow('visible');
+});
+
+/* First immediate attempt for fast loads */
+applyNow('immediate');

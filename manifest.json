@@ -1,21 +1,12 @@
 {
-  "name": "LinkedIn Feed Toggle",
-  "description": "Deletes the LinkedIn feed on demand.",
-  "version": "1.3.0",
+  "name": "LinkedIn Feed Terminator (Simple)",
+  "description": "On the feed page only, wait for full load, then delete the feed.",
+  "version": "2.1.0",
   "manifest_version": 3,
-
-  "permissions": ["storage", "tabs"],
-  "host_permissions": ["https://www.linkedin.com/*"],
-
-  "action": {
-    "default_popup": "popup.html",
-    "default_title": "LinkedIn Feed Toggle"
-  },
-
   "content_scripts": [
     {
       "matches": ["https://www.linkedin.com/*"],
-      "js": ["content.js"],
+      "css": ["hide.css"],
       "run_at": "document_idle"
     }
   ]
