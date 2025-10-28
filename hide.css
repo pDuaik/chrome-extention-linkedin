@@ -4,6 +4,12 @@ main[aria-label="Main Feed"] {
   visibility: hidden !important;
 }
 
+/* Hide the LinkedIn News sidebar */
+aside[aria-label="LinkedIn News"] {
+  display: none !important;
+  visibility: hidden !important;
+}
+
 /* Optional: clean up layout when feed is gone */
 body, html {
   overflow-y: auto !important;

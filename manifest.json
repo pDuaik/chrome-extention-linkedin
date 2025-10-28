@@ -1,7 +1,7 @@
 {
   "name": "LinkedIn Feed Terminator (Simple)",
   "description": "On the feed page only, wait for full load, then delete the feed.",
-  "version": "2.1.0",
+  "version": "2.2.0",
   "manifest_version": 3,
   "content_scripts": [
     {
