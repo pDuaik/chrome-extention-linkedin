@@ -1,6 +1,6 @@
 {
-  "name": "LinkedIn Feed Terminator (Simple)",
-  "description": "On the feed page only, wait for full load, then delete the feed.",
+  "name": "LinkedIn Feed & News Terminator",
+  "description": "Hide the feed and news from LinkedIn so you can use its features without distractions.",
   "version": "2.2.0",
   "manifest_version": 3,
   "content_scripts": [
